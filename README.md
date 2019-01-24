@@ -83,55 +83,20 @@ CREATE TABLE route_geofences AS
 ### Example 1: Observations over the past day where the bus deviated from the BX46 route.
 
 ```sql
-WITH recent_pts AS (
-    SELECT
-        mta.route_id AS route_id,
-        mta.geom AS geom,
-        St_within(mta.geom, route.geom) AS "within"
-    FROM
-        route_geofences AS route
-        JOIN
-            mta
-            ON (route.route_id = mta.route_id)
-    WHERE mta.route_id = 'BX46'
-    AND   mta.TIME > Now() - INTERVAL '1 day')
-)
 SELECT
-    route_id,
-    geom
-FROM recent_pts
-WHERE "within" IS FALSE;
+    mta.route_id AS route_id,
+    mta.vid AS vehicle_id,
+    mta.geom AS geom
+FROM
+    route_geofences AS route
+    JOIN
+        mta
+        ON (route.route_id = mta.route_id)
+WHERE mta.route_id = 'BX46'
+AND NOT st_within(mta.geom, route.geom)
+AND mta.TIME > Now() - INTERVAL '1 day';
 ```
 
 The red dots are observations not within the route in yellow.
 
 ![img](./imgs/bus2.png)
-
-
-### Example 2: Select all bus observations from the past 5 minutes that are off-route
-
-```sql
-WITH route_deviations AS
-(
-    SELECT
-        mta.route_id,
-        mta.geom,
-        mta.TIME,
-        st_within(mta.geom, route.geom) AS on_route
-    FROM
-        route_geofences AS route
-        JOIN
-            mta
-            ON (route.route_id = mta.route_id)
-    WHERE
-        mta.time > now() - INTERVAL '5 minutes'
-)
-SELECT
-    route_id,
-    geom,
-    time
-FROM
-    route_deviations
-WHERE
-    on_route IS FALSE;
-```
