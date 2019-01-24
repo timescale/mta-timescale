@@ -87,22 +87,21 @@ requests_cache.install_cache('.gtfs-cache', expire_after=timedelta(seconds=POLLI
 if __name__ == "__main__":
     with psycopg2.connect(CONNECTION) as conn:
         while True:
-            cursor = conn.cursor()
-            response = requests.get(URL)
-            feed = gtfs.FeedMessage()
-            feed.ParseFromString(response.content)
+            with conn.cursor() as cursor:
+                response = requests.get(URL)
+                feed = gtfs.FeedMessage()
+                feed.ParseFromString(response.content)
 
-            # performant way to batch inserts
-            # see http://initd.org/psycopg/docs/extras.html#psycopg2.extras.execute_batch
-            start = time.time()
-            execute_values(
-                cursor,
-                "INSERT INTO mta (vid, time, route_id, bearing, geom)"
-                "VALUES %s", parse_vehicles(feed))
-            conn.commit()
-            end = time.time()
-            cursor.delete()
+                # performant way to batch inserts
+                # see http://initd.org/psycopg/docs/extras.html#psycopg2.extras.execute_batch
+                start = time.time()
+                execute_values(
+                    cursor,
+                    "INSERT INTO mta (vid, time, route_id, bearing, geom)"
+                    "VALUES %s", parse_vehicles(feed))
+                conn.commit()
+                end = time.time()
 
-            nrows = len(feed.entity)
-            print(f"INSERTED {nrows} rows at {end}, (elapsed: {end - start})")
-            time.sleep(POLLING_INTERVAL)
+                nrows = len(feed.entity)
+                print(f"INSERTED {nrows} rows at {end}, (elapsed: {end - start})")
+                time.sleep(POLLING_INTERVAL)
