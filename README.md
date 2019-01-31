@@ -80,23 +80,73 @@ CREATE TABLE route_geofences AS
 
 ## Queries
 
-### Example 1: Observations over the past day where the bus deviated from the BX46 route.
+### Example 1: Vehicles off-route in the last 15 minutes
 
 ```sql
+--
+-- Vehicles off-route in the last 15 minutes
+-- 
 SELECT
-    mta.route_id AS route_id,
-    mta.vid AS vehicle_id,
-    mta.geom AS geom
+  bus.route_id, 
+  bus.time, 
+  bus.geom
 FROM
-    route_geofences AS route
-    JOIN
-        mta
-        ON (route.route_id = mta.route_id)
-WHERE mta.route_id = 'BX46'
-AND NOT st_within(mta.geom, route.geom)
-AND mta.TIME > Now() - INTERVAL '1 day';
+  route_geofences AS route 
+  JOIN mta AS bus 
+  ON (route.route_id = bus.route_id) 
+WHERE
+  bus.time > now() - interval '15 minutes' 
+AND NOT
+  st_within(bus.geom, route.geom)
 ```
 
 The red dots are observations not within the route in yellow.
 
 ![img](./imgs/bus2.png)
+
+### Example 2: What bus routes pass near 100 6th Ave each hour?
+
+```sql
+--
+-- What bus routes pass near 100 6th Ave each hour?
+--
+SELECT
+    time_bucket_gapfill(
+        '1 hour',
+        time,
+        '2019-01-20 09:00',
+        '2019-01-25 09:00') as bucket,
+    array_agg(distinct route_id) as nearby_routes
+FROM
+	mta
+WHERE
+	time between '2019-01-20 09:00' and '2019-01-25 09:00'
+	AND
+	-- Search within ~160 meters of this building
+  st_dwithin('SRID=4326;POINT(-74.00482 40.7233)', mta.geom, 0.002)
+GROUP BY
+  bucket;
+```
+
+### Example 3:  What is the hourly bus traffic on the M100 route?
+
+```sql
+--
+-- What is the hourly bus traffic on the M100 route?
+--
+SELECT
+    time_bucket_gapfill(
+        '1 hour',
+        time,
+        '2019-01-23 09:00',
+        '2019-01-25 09:00') as bucket,
+    coalesce(count(distinct vid), 0) as n_unique_vehicles
+FROM
+    mta
+WHERE
+    time between '2019-01-23 09:00' and '2019-01-25 09:00'
+AND
+    route_id = 'M100'
+GROUP BY
+    bucket;
+```
